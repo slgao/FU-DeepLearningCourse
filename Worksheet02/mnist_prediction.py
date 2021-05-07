@@ -49,23 +49,6 @@ class Net(nn.Module):
         return output
 
 
-n_epochs = 3
-batch_size_train = 64
-batch_size_test = 1000
-learning_rate = 0.01
-momentum = 0.5
-log_interval = 10
-
-random_seed = 1
-torch.backends.cudnn.enabled = False
-torch.manual_seed(random_seed)
-
-train_losses = []
-train_counter = []
-val_losses = []
-# test_counter = [i*len(train_loader.dataset) for i in range(n_epochs + 1)]
-
-
 def train(epoch):
     network.train()
     for batch_idx, (data, target) in enumerate(train_loader):
@@ -82,15 +65,12 @@ def train(epoch):
             train_losses.append(loss.item())
             train_counter.append((batch_idx * 64) +
                                  ((epoch - 1) * len(train_loader.dataset)))
-            # torch.save(network.state_dict(), './results/model.pth')
-            # torch.save(optimizer.state_dict(), './results/optimizer.pth')
 
 
 def test():
     network.eval()
     test_loss = 0
     correct = 0
-    ipdb.set_trace()
     with torch.no_grad():
         for data, target in val_loader:
             data, target = data.to(device), target.to(device)
@@ -129,20 +109,34 @@ def train_val_dataset(dataset, val_split=0.25):
 # plt.show()
 
 if __name__ == '__main__':
+    n_epochs = 15
+    batch_size_train = 64
+    batch_size_test = 1000
+    learning_rate = 0.005
+    momentum = 0.5
+    log_interval = 10
+
+    random_seed = 1
+    torch.backends.cudnn.enabled = False
+    torch.manual_seed(random_seed)
+
+    train_losses = []
+    train_counter = []
+    val_losses = []
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cpu")
     with np.load('prediction-challenge-01-data.npz') as fh:
         data_x = fh['data_x']
         data_y = fh['data_y']
         test_x = fh['test_x']
-    train_x = torch.tensor(data_x).cuda()
+    train_x = torch.tensor(data_x).to(device)
     train_y = torch.tensor(data_y, dtype=torch.long)
-    test_x = torch.tensor(test_x).cuda()
-    ipdb.set_trace()
+    test_x = torch.tensor(test_x).to(device)
     datasets = TensorDataset(train_x, train_y)
     datasets_splitted = train_val_dataset(datasets)
     dataloaders = {
-        x: DataLoader(datasets_splitted[x], 32, shuffle=True, num_workers=4)
+        x: DataLoader(datasets_splitted[x], 32, shuffle=True, num_workers=0)
         for x in ['train', 'val']
     }
     train_loader = dataloaders['train']
@@ -153,17 +147,19 @@ if __name__ == '__main__':
                           lr=learning_rate,
                           momentum=momentum)
     test()
-    # for epoch in range(1, n_epochs + 1):
-    #     train(epoch)
-    #     test()
+    for epoch in range(1, n_epochs + 1):
+        train(epoch)
+        test()
 
-##############################################
-# prediction = # THAT'S YOUR JOB
+    ##############################################
+    output = network(test_x)
+    prediction = output.data.max(1, keepdim=True)[1]
+    if torch.cuda.is_available():
+        prediction = prediction[:, 0].cpu().detach().numpy()
+    # MAKE SURE THAT YOU HAVE THE RIGHT FORMAT
+    assert prediction.ndim == 1
+    assert prediction.shape[0] == 2000
 
-# # MAKE SURE THAT YOU HAVE THE RIGHT FORMAT
-# assert prediction.ndim == 1
-# assert prediction.shape[0] == 2000
-
-# # AND SAVE EXACTLY AS SHOWN BELOW
-# np.save('prediction.npy', prediction)
-###############################################
+    # AND SAVE EXACTLY AS SHOWN BELOW
+    np.save('prediction.npy', prediction)
+    ###############################################
