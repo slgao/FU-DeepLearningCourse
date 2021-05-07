@@ -1,0 +1,1 @@
+# MNIST type prediction challenge
