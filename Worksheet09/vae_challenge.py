@@ -31,15 +31,12 @@ def load_data(data_name):
 
 def show_image(x, batch_size, idx):
     x = x.view(batch_size, 28, 28)
-
     fig = plt.figure()
     plt.imshow(x[idx].cpu().numpy())
 
 
 ## Model definition
 ## Encoder
-
-
 class Encoder(torch.nn.Module):
     """Documentation for Encoder
 
@@ -58,10 +55,7 @@ class Encoder(torch.nn.Module):
         log_variance = self.e4(x)
         return mean, log_variance
 
-
 ## Decoder
-
-
 class Decoder(torch.nn.Module):
     """Documentation for Decoder
 
@@ -133,14 +127,14 @@ if __name__ == '__main__':
     x_train, x_test, y_train, y_test = model_selection.train_test_split(
         data_x, data_y, test_size=.33)
 
-    # data_train = torch.from_numpy(x_train)
-    # label_train = torch.from_numpy(y_train)
-    # data_test = torch.from_numpy(x_test)
-    # label_test = torch.from_numpy(y_test)
-    # dataset_test = TensorDataset(data_test, label_test)
+    data_train = torch.from_numpy(x_train)
+    label_train = torch.from_numpy(y_train)
+    data_test = torch.from_numpy(x_test)
+    label_test = torch.from_numpy(y_test)
+    dataset_test = TensorDataset(data_test, label_test)
 
-    data_train = torch.from_numpy(data_x)
-    label_train = torch.from_numpy(data_y)
+    # data_train = torch.from_numpy(data_x)
+    # label_train = torch.from_numpy(data_y)
 
     dataset_train = TensorDataset(data_train, label_train)
 
@@ -166,8 +160,11 @@ if __name__ == '__main__':
                 loss.backward()
                 optimizer.step()
                 # losses += loss.item()
-                loss_list += [loss.detach()]
-                loss_epoch += [loss.detach()]
+                if x.shape[0] < batch_size:
+                    loss_list += [loss.item() / x.shape[0]]
+                else:
+                    loss_list += [loss.item() / batch_size]
+                loss_epoch += [loss.item()]
             print(f' training loss -- {np.mean(loss_epoch)}')
 
         # visualize losses
@@ -181,15 +178,17 @@ if __name__ == '__main__':
         vae = VAE(Encoder(x_dim, hidden_dim, latent_dim),
                   Decoder(latent_dim, hidden_dim, x_dim))
         vae.load_state_dict(torch.load("vae_model"))
+        vae.to(DEVICE)
 
     vae.eval()
     fig, axe = plt.subplots()
-    train_data_sec = data_train[:]
-    label_data_sec = label_train[:]
-    mu, log_variance = vae.Encoder(train_data_sec)
-    mu_x = mu.detach().numpy()[:, 0]
-    mu_y = mu.detach().numpy()[:, 1]
-    labels = label_data_sec.detach().numpy()
+    test_data_sec = data_test[:]
+    label_data_sec = label_test[:]
+    test_data_sec = test_data_sec.to(DEVICE)
+    mu, log_variance = vae.Encoder(test_data_sec)
+    mu_x = mu.cpu().detach().numpy()[:, 0]
+    mu_y = mu.cpu().detach().numpy()[:, 1]
+    labels = label_data_sec.cpu().detach().numpy()
     plt.scatter(mu_x,
                 mu_y,
                 c=labels,
@@ -209,14 +208,12 @@ if __name__ == '__main__':
             break
 
     show_image(x_recons, batch_size, idx=0)
-    import ipdb
-    ipdb.set_trace()
 
-    recons, _, _ = vae(train_data_sec)
+    recons, _, _ = vae(test_data_sec)
     grid_x = 4
     sample_size = grid_x**2
     ids = np.random.randint(0, recons.shape[0], sample_size)
-    samples = recons[ids].detach().numpy()
+    samples = recons[ids].cpu().detach().numpy()
     # samples = data_x[ids]
 
     fig_dec = plt.figure(figsize=(4, 4))
@@ -231,5 +228,3 @@ if __name__ == '__main__':
         plt.imshow(sample.reshape(28, 28), cmap='Greys_r')
 
     plt.show()
-    import ipdb
-    ipdb.set_trace()
